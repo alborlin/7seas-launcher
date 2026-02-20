@@ -2,11 +2,15 @@
 
 import os
 import threading
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable
 
 import httpx
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 2  # seconds
 
 
 class DownloadState(Enum):
@@ -177,23 +181,40 @@ class DownloadManager:
                 break
             time.sleep(3)
 
+    def _retry(self, func, max_retries=MAX_RETRIES):
+        """Retry a function with exponential backoff."""
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait = RETRY_BACKOFF_BASE ** (attempt + 1)
+                    time.sleep(wait)
+        raise last_error
+
     def _pull_from_torbox(self, item: QueueItem) -> str:
-        """Download the file from Torbox CDN to local cache."""
+        """Download the file from Torbox CDN to local cache with retry."""
         url = self._torbox.get_download_url(item.torbox_id, file_id=0)
         cache_dir = os.path.expanduser("~/.cache/seven-seas")
         os.makedirs(cache_dir, exist_ok=True)
         local_path = os.path.join(cache_dir, f"download_{item.game_id}")
-        with httpx.stream("GET", url) as response:
-            total = int(response.headers.get("content-length", 0))
-            downloaded = 0
-            with open(local_path, "wb") as f:
-                for chunk in response.iter_bytes(chunk_size=1024 * 1024):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total > 0:
-                        item.progress = downloaded / total
-                    self._notify_progress(item)
-        return local_path
+
+        def do_download():
+            with httpx.stream("GET", url) as response:
+                total = int(response.headers.get("content-length", 0))
+                downloaded = 0
+                with open(local_path, "wb") as f:
+                    for chunk in response.iter_bytes(chunk_size=1024 * 1024):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0:
+                            item.progress = downloaded / total
+                        self._notify_progress(item)
+            return local_path
+
+        return self._retry(do_download)
 
     def _find_game_exe(self, directory: str) -> str | None:
         """Find the main game executable (heuristic)."""

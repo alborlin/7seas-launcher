@@ -68,3 +68,29 @@ def test_on_progress_callback(manager, deps):
     item = QueueItem(game_id=1, magnet="magnet:test")
     manager._notify_progress(item)
     callback.assert_called_once_with(item)
+
+
+def test_retry_succeeds_on_third_attempt(manager):
+    """Retry should succeed if function succeeds within max_retries."""
+    call_count = 0
+    def flaky_func():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ConnectionError("Network error")
+        return "success"
+
+    with patch("sevenseas.core.downloader.time.sleep"):  # skip actual sleeping
+        result = manager._retry(flaky_func, max_retries=3)
+    assert result == "success"
+    assert call_count == 3
+
+
+def test_retry_raises_after_max_attempts(manager):
+    """Retry should raise after exhausting all attempts."""
+    def always_fail():
+        raise ConnectionError("Network error")
+
+    with patch("sevenseas.core.downloader.time.sleep"):
+        with pytest.raises(ConnectionError):
+            manager._retry(always_fail, max_retries=3)
