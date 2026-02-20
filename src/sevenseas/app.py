@@ -10,6 +10,11 @@ from gi.repository import Adw, Gio
 
 from sevenseas.db.models import get_db
 from sevenseas.core.config import ConfigService
+from sevenseas.core.scraper import FitGirlScraper
+from sevenseas.core.library import LibraryService
+from sevenseas.core.extractor import Extractor
+from sevenseas.core.installer import BottlesInstaller
+from sevenseas.core.steam import SteamShortcuts
 from sevenseas.ui.window import MainWindow
 
 
@@ -25,7 +30,6 @@ class SevenSeasApp(Adw.Application):
         self.config = None
 
     def do_activate(self) -> None:
-        # Initialize database
         data_dir = os.path.join(
             os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
             "seven-seas",
@@ -34,10 +38,22 @@ class SevenSeasApp(Adw.Application):
         self.db = get_db(os.path.join(data_dir, "sevenseas.db"))
         self.config = ConfigService(self.db)
 
-        # Create main window
+        services = {
+            "config": self.config,
+            "scraper": FitGirlScraper(),
+            "library": LibraryService(self.db),
+            "extractor": Extractor(),
+            "installer": BottlesInstaller(self.config.bottles_name),
+            "steam": SteamShortcuts(),
+        }
+
         win = self.props.active_window
         if not win:
-            win = MainWindow(application=self)
+            win = MainWindow(application=self, services=services, db=self.db)
+
+        if not self.config.torbox_api_key:
+            win.show_settings()
+
         win.present()
 
 

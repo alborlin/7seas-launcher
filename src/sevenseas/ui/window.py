@@ -9,7 +9,7 @@ from gi.repository import Gtk, Adw
 class MainWindow(Adw.ApplicationWindow):
     """Main window with sidebar navigation and content area."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, services=None, db=None, **kwargs) -> None:
         super().__init__(**kwargs)
         self.set_title("7-Seas Launcher")
         self.set_default_size(1200, 800)
@@ -102,6 +102,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._views: dict[str, Gtk.Widget] = {}
         self._current_view: str | None = None
 
+        # Wire services and views if provided
+        if services is not None:
+            self._init_views(services, db)
+
     def _make_nav_row(self, label: str, icon_name: str, view_name: str) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -162,3 +166,149 @@ class MainWindow(Adw.ApplicationWindow):
     def set_status(self, text: str) -> None:
         """Update the bottom status bar text."""
         self._status_label.set_text(text)
+
+    # --- Service/view wiring ---
+
+    def _init_views(self, services, db):
+        """Create all view instances and register them."""
+        from sevenseas.ui.views.search import SearchView
+        from sevenseas.ui.views.browse import BrowseView
+        from sevenseas.ui.views.downloads import DownloadsView
+        from sevenseas.ui.views.library import LibraryView
+        from sevenseas.ui.views.settings import SettingsView
+
+        scraper = services["scraper"]
+        library = services["library"]
+        config = services["config"]
+
+        self._services = services
+        self._db = db
+        self._library = library
+        self._config = config
+        self._downloads_view = DownloadsView()
+
+        # Register views
+        self.register_view("search", SearchView(scraper, on_install=self._on_install_requested))
+        self.register_view("new", BrowseView("New Releases", scraper.get_latest, on_install=self._on_install_requested))
+        self.register_view("top50", BrowseView("Top 50 This Month", scraper.get_top_monthly, on_install=self._on_install_requested))
+        self.register_view("top150", BrowseView("Top 150 This Year", scraper.get_top_yearly, on_install=self._on_install_requested))
+        self.register_view("downloads", self._downloads_view)
+        self.register_view("library", LibraryView(library))
+        self.register_view("settings", SettingsView(config, on_api_key_validated=self._on_api_key_validated))
+
+        # Initialize download manager if API key is set
+        self._download_manager = None
+        if config.torbox_api_key:
+            self._init_download_manager()
+
+    def _init_download_manager(self):
+        """Create the download manager with all services wired up."""
+        from sevenseas.core.torbox import TorboxClient
+        from sevenseas.core.downloader import DownloadManager
+        from gi.repository import GLib
+
+        torbox = TorboxClient(api_key=self._config.torbox_api_key)
+        self._download_manager = DownloadManager(
+            db=self._db,
+            torbox=torbox,
+            extractor=self._services["extractor"],
+            installer=self._services["installer"],
+            library=self._library,
+            steam=self._services["steam"],
+            config=self._config,
+        )
+
+        def on_progress(item):
+            GLib.idle_add(self._on_download_progress, item)
+
+        def on_complete(item):
+            GLib.idle_add(self._on_download_complete, item)
+
+        def on_error(item):
+            GLib.idle_add(self._on_download_error, item)
+
+        self._download_manager.on_progress(on_progress)
+        self._download_manager.on_complete(on_complete)
+        self._download_manager.on_error(on_error)
+
+    def _on_install_requested(self, title, url):
+        """Handle install button click -- fetch detail, extract magnet, start download."""
+        import threading
+        from gi.repository import GLib
+
+        if not self._download_manager:
+            self.set_status("Set your Torbox API key in Settings first")
+            self._switch_view("settings")
+            return
+
+        def do_install():
+            try:
+                scraper = self._services["scraper"]
+                detail = scraper.get_detail(url)
+                if not detail.magnet_uri:
+                    GLib.idle_add(self.set_status, f"No magnet link found for {title}")
+                    return
+
+                slug = scraper.slug_from_url(url)
+                game = self._library.add_game(
+                    title=title, slug=slug, source_url=url,
+                    cover_url=detail.screenshots[0] if detail.screenshots else None,
+                    size_bytes=None,
+                )
+
+                GLib.idle_add(self._downloads_view.add_download, game.id, title)
+                GLib.idle_add(self.set_status, f"Starting download: {title}")
+                GLib.idle_add(self._switch_view, "downloads")
+
+                self._download_manager.enqueue(game_id=game.id, magnet=detail.magnet_uri)
+            except Exception as e:
+                GLib.idle_add(self.set_status, f"Error: {e}")
+
+        thread = threading.Thread(target=do_install, daemon=True)
+        thread.start()
+
+    def _on_api_key_validated(self, api_key):
+        """Handle API key validation from settings."""
+        from gi.repository import GLib
+        import threading
+
+        def validate():
+            from sevenseas.core.torbox import TorboxClient
+            client = TorboxClient(api_key=api_key)
+            valid = client.validate_api_key()
+            if valid:
+                GLib.idle_add(self._on_api_key_valid, api_key)
+            else:
+                settings_view = self._views.get("settings")
+                if settings_view:
+                    GLib.idle_add(settings_view.set_api_status, "Invalid API key")
+
+        thread = threading.Thread(target=validate, daemon=True)
+        thread.start()
+
+    def _on_api_key_valid(self, api_key):
+        """Called when API key is confirmed valid."""
+        settings_view = self._views.get("settings")
+        if settings_view:
+            settings_view.set_api_status("API key validated successfully!")
+        self._init_download_manager()
+
+    def _on_download_progress(self, item):
+        self._downloads_view.update_download(item.game_id, item.state.value, item.progress, item.speed_bps)
+        game = self._library.get_by_id(item.game_id)
+        title = game.title if game else "Unknown"
+        self.set_status(f"Downloading: {title} — {item.progress * 100:.0f}%")
+
+    def _on_download_complete(self, item):
+        self._downloads_view.update_download(item.game_id, "complete", 1.0, 0)
+        game = self._library.get_by_id(item.game_id)
+        title = game.title if game else "Unknown"
+        self.set_status(f"Installed: {title}")
+        # Refresh library view
+        library_view = self._views.get("library")
+        if library_view and hasattr(library_view, "refresh"):
+            library_view.refresh()
+
+    def _on_download_error(self, item):
+        self._downloads_view.update_download(item.game_id, "failed", item.progress, 0)
+        self.set_status(f"Failed: {item.error}")
