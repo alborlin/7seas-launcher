@@ -1,0 +1,13 @@
+pyproject.toml
+src/seven_seas_launcher.egg-info/PKG-INFO
+src/seven_seas_launcher.egg-info/SOURCES.txt
+src/seven_seas_launcher.egg-info/dependency_links.txt
+src/seven_seas_launcher.egg-info/entry_points.txt
+src/seven_seas_launcher.egg-info/requires.txt
+src/seven_seas_launcher.egg-info/top_level.txt
+src/sevenseas/__init__.py
+src/sevenseas/core/__init__.py
+src/sevenseas/db/__init__.py
+src/sevenseas/ui/__init__.py
+src/sevenseas/ui/views/__init__.py
+src/sevenseas/ui/widgets/__init__.py

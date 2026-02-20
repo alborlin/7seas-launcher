@@ -1,0 +1,2 @@
+[console_scripts]
+seven-seas = sevenseas.app:main
