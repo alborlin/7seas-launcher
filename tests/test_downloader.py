@@ -1,0 +1,70 @@
+"""Tests for the download manager / pipeline orchestrator."""
+
+import pytest
+from unittest.mock import MagicMock, patch
+
+from sevenseas.core.downloader import DownloadManager, DownloadState
+
+
+@pytest.fixture
+def deps():
+    """Mock all dependencies."""
+    return {
+        "db": MagicMock(),
+        "torbox": MagicMock(),
+        "extractor": MagicMock(),
+        "installer": MagicMock(),
+        "library": MagicMock(),
+        "steam": MagicMock(),
+        "config": MagicMock(),
+    }
+
+
+@pytest.fixture
+def manager(deps):
+    deps["config"].games_dir = "/tmp/Games"
+    deps["config"].auto_add_steam = True
+    return DownloadManager(**deps)
+
+
+def test_initial_state(manager):
+    assert manager.active_download is None
+    assert manager.queue == []
+
+
+def test_enqueue_download(manager, deps):
+    game = MagicMock(id=1, title="Test", slug="test")
+    deps["library"].get_by_id.return_value = game
+    with patch.object(manager, "_start_next"):
+        manager.enqueue(game_id=1, magnet="magnet:?xt=urn:btih:abc")
+    assert len(manager.queue) == 1
+    assert manager.queue[0].game_id == 1
+
+
+def test_enqueue_starts_if_idle(manager, deps):
+    game = MagicMock(id=1, title="Test", slug="test")
+    deps["library"].get_by_id.return_value = game
+    with patch.object(manager, "_start_next") as mock_start:
+        manager.enqueue(game_id=1, magnet="magnet:?xt=urn:btih:abc")
+        mock_start.assert_called_once()
+
+
+def test_download_state_transitions():
+    """Verify the state enum values."""
+    assert DownloadState.PENDING.value == "pending"
+    assert DownloadState.TORBOX_DOWNLOADING.value == "torbox_downloading"
+    assert DownloadState.PULLING.value == "pulling"
+    assert DownloadState.EXTRACTING.value == "extracting"
+    assert DownloadState.INSTALLING.value == "installing"
+    assert DownloadState.COMPLETE.value == "complete"
+    assert DownloadState.FAILED.value == "failed"
+
+
+def test_on_progress_callback(manager, deps):
+    """Test that progress callbacks are called."""
+    callback = MagicMock()
+    manager.on_progress(callback)
+    from sevenseas.core.downloader import QueueItem
+    item = QueueItem(game_id=1, magnet="magnet:test")
+    manager._notify_progress(item)
+    callback.assert_called_once_with(item)
