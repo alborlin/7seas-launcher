@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=7-Seas Launcher
+Comment=Download and install games via Torbox and Bottles
+Exec=seven-seas
+Icon=com.sevenseas.Launcher
+Terminal=false
+Type=Application
+Categories=Game;
+Keywords=games;installer;torbox;bottles;wine;
