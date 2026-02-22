@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo/c08a1afd-85b1-42c3-97c7-aecca52302b3.jpg" alt="7-Seas Logo" width="120" style="border-radius: 50%;">
+  <img src="logo/c08a1afd-85b1-42c3-97c7-aecca52302b3.jpg" alt="7-Seas Logo" width="240" style="border-radius: 50%;">
 </p>
 
 <h1 align="center">7-Seas Launcher</h1>
