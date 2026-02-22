@@ -215,7 +215,7 @@ class DownloadManager:
                     self._notify_progress(item)
                     launch_opts = self._build_launch_options(dest)
                     shortcut_id = self._steam.add_shortcut(
-                        game.title, exe_full, dest,
+                        dir_name, exe_full, dest,
                         launch_options=launch_opts,
                     )
                     if shortcut_id:
