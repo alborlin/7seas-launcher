@@ -14,11 +14,11 @@ def test_add_game(db):
     assert game.status == "new"
 
 
-def test_add_duplicate_slug_raises(db):
+def test_add_duplicate_slug_returns_existing(db):
     lib = LibraryService(db)
-    lib.add_game(title="Game", slug="game")
-    with pytest.raises(Exception):
-        lib.add_game(title="Game 2", slug="game")
+    first = lib.add_game(title="Game", slug="game")
+    second = lib.add_game(title="Game 2", slug="game")
+    assert second.id == first.id
 
 
 def test_get_by_id(db):

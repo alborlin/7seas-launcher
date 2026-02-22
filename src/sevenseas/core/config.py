@@ -44,5 +44,15 @@ class ConfigService:
         return self.get("torbox_api_key")
 
     @property
+    def steamgriddb_api_key(self) -> str | None:
+        return self.get("steamgriddb_api_key")
+
+    @property
     def auto_add_steam(self) -> bool:
         return self.get("auto_add_steam", "true").lower() == "true"
+
+    @property
+    def proton_version(self) -> str | None:
+        """Internal name of the preferred Proton compat tool, or None for Steam default."""
+        val = self.get("proton_version")
+        return val if val else None

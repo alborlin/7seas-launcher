@@ -11,6 +11,8 @@ import vdf
 
 log = logging.getLogger(__name__)
 
+_STEAM_PROCS = ["steam", "steamwebhelper", "steam-runtime-launcher-service"]
+
 
 class SteamShortcuts:
     """Add and remove non-Steam game shortcuts."""
@@ -385,11 +387,14 @@ class SteamShortcuts:
     @staticmethod
     def _steam_pids_alive() -> bool:
         """Check if any Steam-related processes are still running."""
-        result = subprocess.run(
-            ["pgrep", "-f", "steam"],
-            capture_output=True, check=False,
-        )
-        return result.returncode == 0
+        for proc in _STEAM_PROCS:
+            result = subprocess.run(
+                ["pgrep", "-x", proc],
+                capture_output=True, check=False,
+            )
+            if result.returncode == 0:
+                return True
+        return False
 
     @staticmethod
     def restart() -> None:
@@ -411,8 +416,9 @@ class SteamShortcuts:
             else:
                 # Still running after 20s — SIGTERM the stragglers
                 log.warning("Steam processes still alive after 20s, sending SIGTERM")
-                subprocess.run(["pkill", "-f", "steam"],
-                               capture_output=True, check=False)
+                for proc in _STEAM_PROCS:
+                    subprocess.run(["pkill", "-x", proc],
+                                   capture_output=True, check=False)
                 # Give SIGTERM a few seconds to work
                 for _ in range(5):
                     if not SteamShortcuts._steam_pids_alive():
@@ -421,8 +427,9 @@ class SteamShortcuts:
                 else:
                     # Nuclear option — SIGKILL anything left
                     log.warning("Steam processes survived SIGTERM, sending SIGKILL")
-                    subprocess.run(["pkill", "-9", "-f", "steam"],
-                                   capture_output=True, check=False)
+                    for proc in _STEAM_PROCS:
+                        subprocess.run(["pkill", "-9", "-x", proc],
+                                       capture_output=True, check=False)
                     time.sleep(2)
 
             # Grace period for lock files / IPC sockets to be released

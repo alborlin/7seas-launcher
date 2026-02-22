@@ -37,6 +37,11 @@ class LibraryService:
         cover_url: str | None = None,
         size_bytes: int | None = None,
     ) -> Game:
+        # Return existing game if slug already exists (e.g. retry after failure)
+        existing = self.get_by_slug(slug)
+        if existing:
+            self.update_status(existing.id, "new")
+            return existing
         cursor = self._db.execute(
             """INSERT INTO games (title, slug, source_url, cover_url, size_bytes)
                VALUES (?, ?, ?, ?, ?)""",
@@ -44,6 +49,12 @@ class LibraryService:
         )
         self._db.commit()
         return self.get_by_id(cursor.lastrowid)
+
+    def get_by_slug(self, slug: str) -> Game | None:
+        row = self._db.execute(
+            "SELECT * FROM games WHERE slug = ?", (slug,)
+        ).fetchone()
+        return _row_to_game(row) if row else None
 
     def get_by_id(self, game_id: int) -> Game | None:
         row = self._db.execute(

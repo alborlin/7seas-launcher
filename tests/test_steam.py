@@ -43,3 +43,26 @@ def test_build_shortcut_entry():
     assert entry["AppName"] == "Test Game"
     assert entry["Exe"] == '"/home/user/Games/TestGame/game.exe"'
     assert entry["StartDir"] == '"/home/user/Games/TestGame"'
+
+
+def test_generate_artwork_id():
+    """generate_artwork_id returns unsigned 32-bit ID for artwork filenames."""
+    from sevenseas.core.steam import SteamShortcuts
+    uid = SteamShortcuts.generate_artwork_id("TestGame", "/usr/bin/test")
+    assert uid > 0
+    assert uid <= 0xFFFFFFFF
+
+
+def test_get_grid_dirs(tmp_path):
+    """get_grid_dirs returns grid directory paths for each Steam user."""
+    from sevenseas.core.steam import SteamShortcuts
+    steam = SteamShortcuts()
+    user_dir = tmp_path / "userdata" / "12345" / "config"
+    user_dir.mkdir(parents=True)
+    grid_dir = user_dir / "grid"
+    grid_dir.mkdir()
+    steam._userdata_dirs = [user_dir]
+
+    dirs = steam.get_grid_dirs()
+    assert len(dirs) == 1
+    assert dirs[0] == grid_dir

@@ -1,5 +1,6 @@
 """SQLite schema definition and table creation."""
 
+import os
 import sqlite3
 
 SCHEMA_VERSION = 1
@@ -56,13 +57,14 @@ CREATE TABLE IF NOT EXISTS settings (
 def create_tables(conn: sqlite3.Connection) -> None:
     """Create all tables if they don't exist."""
     conn.executescript(_SCHEMA)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.commit()
 
 
 def get_db(db_path: str) -> sqlite3.Connection:
     """Open a database connection and ensure schema exists."""
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    os.chmod(db_path, 0o600)  # Owner read/write only
+    conn.execute("PRAGMA journal_mode=WAL")  # Safe concurrent reads/writes
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     create_tables(conn)
     return conn

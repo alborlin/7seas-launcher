@@ -9,11 +9,17 @@ from sevenseas.ui.widgets.download_row import DownloadRow
 
 
 _STAGE_LABELS = {
-    "pending": "Pending",
-    "torbox_downloading": "Torbox Downloading",
-    "pulling": "Downloading from Torbox",
+    "pending": "Queued",
+    "torbox_downloading": "Waiting on Torbox",
+    "pulling": "Downloading",
     "extracting": "Extracting",
-    "installing": "Installing",
+    "installing": "Running Installer",
+    "moving": "Moving to Games",
+    "adding_to_steam": "Adding to Steam",
+    "installing_redists": "Installing Redistributables",
+    "fetching_art": "Pulling Media",
+    "restarting_steam": "Restarting Steam",
+    "cleaning_up": "Cleaning Up",
     "complete": "Complete",
     "failed": "Failed",
 }
@@ -22,8 +28,10 @@ _STAGE_LABELS = {
 class DownloadsView(Gtk.Box):
     """Shows active downloads and their progress."""
 
-    def __init__(self) -> None:
+    def __init__(self, on_cancel=None, on_retry=None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self._on_cancel = on_cancel
+        self._on_retry = on_retry
 
         title = Gtk.Label(label="Downloads")
         title.add_css_class("title-1")
@@ -49,9 +57,12 @@ class DownloadsView(Gtk.Box):
         self._empty.set_vexpand(True)
         self.append(self._empty)
 
-    def add_download(self, game_id: int, title: str) -> None:
+    def add_download(self, game_id: int, title: str, cover_url: str | None = None) -> None:
         self._empty.set_visible(False)
-        row = DownloadRow(title=title, stage="Pending")
+        cancel_cb = (lambda gid=game_id: self._on_cancel(gid)) if self._on_cancel else None
+        retry_cb = (lambda gid=game_id: self._on_retry(gid)) if self._on_retry else None
+        row = DownloadRow(title=title, stage="Pending", on_cancel=cancel_cb,
+                          on_retry=retry_cb, cover_url=cover_url)
         self._rows[game_id] = row
         self._list_box.append(row)
 

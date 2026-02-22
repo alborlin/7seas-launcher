@@ -29,10 +29,28 @@ class Extractor:
             )
 
     def find_setup_exe(self, directory: str) -> str | None:
-        """Find setup.exe or similar installer in extracted files."""
-        setup_names = {"setup.exe", "install.exe", "installer.exe"}
+        """Find setup.exe or similar installer in extracted files.
+
+        FitGirl repacks use variants like setup-fitgirl.exe, setup-multi10.exe, etc.
+        """
+        exact_names = {"install.exe", "installer.exe"}
+        best = None
+        best_depth = float("inf")
         for root, _dirs, files in os.walk(directory):
+            depth = root.replace(directory, "").count(os.sep)
             for f in files:
-                if f.lower() in setup_names:
-                    return os.path.join(root, f)
-        return None
+                low = f.lower()
+                if not low.endswith(".exe"):
+                    continue
+                path = os.path.join(root, f)
+                # Exact matches (install.exe, installer.exe)
+                if low in exact_names:
+                    if depth < best_depth:
+                        best = path
+                        best_depth = depth
+                # setup*.exe — covers setup.exe, setup-fitgirl.exe, setup-multi10.exe, etc.
+                elif low.startswith("setup") and not low.startswith("setup_redist"):
+                    if depth < best_depth:
+                        best = path
+                        best_depth = depth
+        return best

@@ -7,3 +7,4 @@ Terminal=false
 Type=Application
 Categories=Game;
 Keywords=games;installer;torbox;bottles;wine;
+StartupWMClass=com.sevenseas.Launcher

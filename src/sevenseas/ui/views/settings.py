@@ -9,10 +9,11 @@ from gi.repository import Gtk, Adw
 class SettingsView(Gtk.Box):
     """Settings page with Torbox API key, game directory, and preferences."""
 
-    def __init__(self, config, on_api_key_validated=None) -> None:
+    def __init__(self, config, on_api_key_validated=None, steam=None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._config = config
         self._on_api_key_validated = on_api_key_validated
+        self._steam = steam
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_vexpand(True)
@@ -84,6 +85,32 @@ class SettingsView(Gtk.Box):
         self._steam_switch.connect("notify::active", self._on_steam_toggle)
         steam_group.add(self._steam_switch)
 
+        self._sgdb_key_row = Adw.PasswordEntryRow()
+        self._sgdb_key_row.set_title("SteamGridDB API Key")
+        self._sgdb_key_row.set_text(config.steamgriddb_api_key or "")
+        self._sgdb_key_row.connect("changed", self._on_sgdb_key_changed)
+        steam_group.add(self._sgdb_key_row)
+
+        # Proton version picker
+        self._proton_row = Adw.ComboRow()
+        self._proton_row.set_title("Proton Version")
+        self._proton_row.set_subtitle("Compat tool for imported games (all games need Proton)")
+        self._proton_tools: list[dict] = []
+        self._proton_model = Gtk.StringList()
+        self._proton_model.append("Proton Experimental (default)")
+        active_idx = 0
+        if steam:
+            self._proton_tools = steam.get_compat_tools()
+            current = config.proton_version
+            for i, tool in enumerate(self._proton_tools):
+                self._proton_model.append(tool["display_name"])
+                if tool["name"] == current:
+                    active_idx = i + 1  # offset by 1 for default option
+        self._proton_row.set_model(self._proton_model)
+        self._proton_row.set_selected(active_idx)
+        self._proton_row.connect("notify::selected", self._on_proton_changed)
+        steam_group.add(self._proton_row)
+
     def _on_validate_clicked(self, button: Gtk.Button) -> None:
         api_key = self._api_key_row.get_text().strip()
         if not api_key:
@@ -102,6 +129,18 @@ class SettingsView(Gtk.Box):
 
     def _on_steam_toggle(self, switch: Adw.SwitchRow, _param) -> None:
         self._config.set("auto_add_steam", str(switch.get_active()).lower())
+
+    def _on_sgdb_key_changed(self, row: Adw.EntryRow) -> None:
+        self._config.set("steamgriddb_api_key", row.get_text().strip())
+
+    def _on_proton_changed(self, row: Adw.ComboRow, _param) -> None:
+        idx = row.get_selected()
+        if idx == 0:
+            # "Steam Default" — clear the setting
+            self._config.set("proton_version", "")
+        elif idx - 1 < len(self._proton_tools):
+            tool = self._proton_tools[idx - 1]
+            self._config.set("proton_version", tool["name"])
 
     def set_api_status(self, text: str) -> None:
         self._api_status.set_text(text)

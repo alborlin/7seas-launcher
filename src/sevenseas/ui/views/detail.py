@@ -1,6 +1,5 @@
 """Game detail view — side-by-side layout with cover art on the right."""
 
-import hashlib
 import os
 import threading
 from pathlib import Path
@@ -12,7 +11,9 @@ from gi.repository import Gtk, Adw, GLib, Pango
 
 from sevenseas.core.scraper import GameResult, GameDetail
 
-_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "seven-seas" / "covers"
+from sevenseas.ui.widgets.game_card import (
+    _CACHE_DIR, cache_path_for_url, atomic_write_cache,
+)
 
 
 class GameDetailView(Gtk.Box):
@@ -337,9 +338,7 @@ class GameDetailView(Gtk.Box):
     def _load_image_async(url: str, picture: Gtk.Picture) -> None:
         """Download an image in background and set it on a Gtk.Picture."""
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        url_hash = hashlib.md5(url.encode()).hexdigest()
-        ext = os.path.splitext(url.split("?")[0])[-1] or ".jpg"
-        cache_path = _CACHE_DIR / f"{url_hash}{ext}"
+        cache_path = cache_path_for_url(url)
 
         if cache_path.exists():
             picture.set_filename(str(cache_path))
@@ -350,7 +349,7 @@ class GameDetailView(Gtk.Box):
                 import httpx
                 resp = httpx.get(url, follow_redirects=True, timeout=15.0)
                 resp.raise_for_status()
-                cache_path.write_bytes(resp.content)
+                atomic_write_cache(cache_path, resp.content)
                 GLib.idle_add(picture.set_filename, str(cache_path))
             except Exception:
                 pass
