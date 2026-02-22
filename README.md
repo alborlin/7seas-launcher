@@ -26,6 +26,11 @@ Browse New Releases, Top 50, and Top 150 repacks with cover art pulled from Stea
 
 ![Browse](docs/screenshots/browse.png)
 
+### Game Detail
+Full game info with cover art, description, system requirements, screenshots, and a ProtonDB compatibility badge.
+
+![Detail](docs/screenshots/detail.png)
+
 ### Library
 Your installed games at a glance with cover art, launch support, and Steam integration status.
 
