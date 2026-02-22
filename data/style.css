@@ -1,0 +1,609 @@
+/* 7-Seas Launcher — Navy & Gold theme derived from logo
+ *
+ * Logo background sampled: #1c2131
+ * Gold accent sampled:     #c9a84c
+ * Cream/sail white:        #e8e0d0
+ */
+
+/* === Adw named color overrides === */
+@define-color accent_bg_color #c9a84c;
+@define-color accent_fg_color #1c2131;
+@define-color accent_color #c9a84c;
+
+@define-color window_bg_color #1c2131;
+@define-color window_fg_color #e8e0d0;
+
+@define-color headerbar_bg_color #161b2a;
+@define-color headerbar_fg_color #d4af57;
+@define-color headerbar_border_color rgba(201, 168, 76, 0.12);
+@define-color headerbar_shade_color rgba(0, 0, 0, 0.3);
+
+@define-color sidebar_bg_color #181d2c;
+@define-color sidebar_fg_color #e8e0d0;
+@define-color sidebar_shade_color rgba(0, 0, 0, 0.25);
+@define-color sidebar_border_color rgba(201, 168, 76, 0.08);
+
+@define-color card_bg_color #232840;
+@define-color card_fg_color #e8e0d0;
+@define-color card_shade_color rgba(0, 0, 0, 0.25);
+
+@define-color view_bg_color #1c2131;
+@define-color view_fg_color #e8e0d0;
+
+@define-color popover_bg_color #232840;
+@define-color popover_fg_color #e8e0d0;
+
+@define-color dialog_bg_color #232840;
+@define-color dialog_fg_color #e8e0d0;
+
+@define-color shade_color rgba(0, 0, 0, 0.25);
+@define-color scrollbar_outline_color rgba(201, 168, 76, 0.12);
+
+@define-color destructive_bg_color #8b3a3a;
+@define-color destructive_fg_color #e8e0d0;
+@define-color success_bg_color #3a6b4a;
+@define-color success_fg_color #e8e0d0;
+@define-color success_color #5a9b6a;
+@define-color warning_bg_color #c9a84c;
+@define-color warning_fg_color #1c2131;
+@define-color warning_color #c9a84c;
+@define-color error_bg_color #8b3a3a;
+@define-color error_fg_color #e8e0d0;
+@define-color error_color #c45c5c;
+
+/* === Force backgrounds on actual widgets === */
+
+/* Main window & content */
+window,
+window.background,
+.background {
+    background-color: #1c2131;
+    color: #e8e0d0;
+}
+
+/* All box/view containers inside the window */
+window box,
+window scrolledwindow,
+window viewport {
+    background-color: transparent;
+    color: #e8e0d0;
+}
+
+/* The .view class Adw uses for content areas */
+.view,
+textview,
+treeview,
+listview,
+columnview {
+    background-color: #1c2131;
+    color: #e8e0d0;
+}
+
+/* Header bars */
+headerbar,
+.titlebar,
+headerbar.titlebar {
+    background-color: #161b2a;
+    color: #d4af57;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.15);
+    box-shadow: inset 0 -1px 0 rgba(201, 168, 76, 0.06);
+    min-height: 42px;
+}
+
+/* Header bar window controls (close/min/max buttons) */
+headerbar windowcontrols button {
+    color: #8a8070;
+}
+
+headerbar windowcontrols button:hover {
+    color: #d4af57;
+}
+
+/* ViewStack pages */
+viewstack > * {
+    background-color: #1c2131;
+}
+
+/* FlowBox and its children — override libadwaita defaults */
+flowbox,
+flowbox > flowboxchild,
+flowbox > flowboxchild:hover,
+flowbox > flowboxchild:active,
+flowbox > flowboxchild:selected,
+flowbox > flowboxchild:selected:hover,
+flowbox > flowboxchild:selected:active {
+    background-color: transparent;
+    background: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+}
+
+/* === Top bar extras === */
+.top-bar-logo {
+    border-radius: 50%;
+    min-width: 76px;
+    min-height: 76px;
+    margin-top: -14px;
+    margin-bottom: -26px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 0 2px rgba(201, 168, 76, 0.25);
+}
+
+.top-bar-search {
+    min-width: 220px;
+    max-width: 300px;
+}
+
+.download-badge {
+    background-color: #c9a84c;
+    color: #1c2131;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 18px;
+    min-height: 18px;
+    padding: 0 4px;
+}
+
+/* === Typography === */
+
+.title-1 {
+    color: #d4af57;
+}
+
+.heading {
+    color: #e8e0d0;
+}
+
+/* Nautical title for "7-Seas" in header bar */
+.nautical-title {
+    font-family: "Pirata One", "Noto Serif Display", "DejaVu Serif", serif;
+    font-size: 22px;
+    color: #d4af57;
+    letter-spacing: 2px;
+}
+
+.dim-label {
+    color: #8a8070;
+}
+
+/* === Cards === */
+.card {
+    background-color: #232840;
+    border: 1px solid rgba(201, 168, 76, 0.10);
+    border-radius: 12px;
+    color: #e8e0d0;
+}
+
+/* === Game cards (borderless cover art style) === */
+.game-card {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+}
+
+.game-card:hover .game-card-image {
+    opacity: 0.85;
+}
+
+.game-card-image {
+    border-radius: 8px;
+    background-color: #232840;
+}
+
+.game-card-title {
+    color: #e8e0d0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.game-card-subtitle {
+    color: #8a8070;
+    font-size: 11px;
+}
+
+/* === Progress bars === */
+progressbar > trough {
+    background-color: #2a3048;
+    border-radius: 4px;
+}
+
+progressbar > trough > progress {
+    background-color: #c9a84c;
+    border-radius: 4px;
+}
+
+/* === Buttons === */
+.suggested-action {
+    background-color: #c9a84c;
+    color: #1c2131;
+    font-weight: bold;
+}
+
+.suggested-action:hover {
+    background-color: #d9b85c;
+}
+
+.destructive-action {
+    background-color: #8b3a3a;
+    color: #e8e0d0;
+}
+
+.destructive-action:hover {
+    background-color: #a04545;
+}
+
+/* === Toolbar / status bar === */
+.toolbar {
+    background-color: #161b2a;
+    border-top: 1px solid rgba(201, 168, 76, 0.08);
+    color: #8a8070;
+}
+
+/* === Entries === */
+entry {
+    background-color: #262c42;
+    color: #e8e0d0;
+    border-color: rgba(201, 168, 76, 0.15);
+}
+
+entry:focus-within {
+    border-color: rgba(201, 168, 76, 0.5);
+    outline-color: rgba(201, 168, 76, 0.3);
+}
+
+row.entry {
+    background-color: #262c42;
+    color: #e8e0d0;
+}
+
+/* === Switches === */
+switch {
+    background-color: #2a3048;
+}
+
+switch:checked {
+    background-color: #c9a84c;
+}
+
+/* === Scrollbar === */
+scrollbar > range > trough > slider {
+    background-color: rgba(201, 168, 76, 0.25);
+    border-radius: 9999px;
+}
+
+scrollbar > range > trough > slider:hover {
+    background-color: rgba(201, 168, 76, 0.45);
+}
+
+/* === Boxed list (downloads) === */
+.boxed-list {
+    background-color: #232840;
+    border: 1px solid rgba(201, 168, 76, 0.10);
+    border-radius: 12px;
+}
+
+.boxed-list > row {
+    border-color: rgba(201, 168, 76, 0.06);
+    color: #e8e0d0;
+}
+
+/* === Pill button (Load More) === */
+.pill {
+    background-color: rgba(201, 168, 76, 0.12);
+    color: #d4af57;
+    border-radius: 9999px;
+}
+
+.pill:hover {
+    background-color: rgba(201, 168, 76, 0.2);
+}
+
+/* === Separator === */
+separator {
+    background-color: rgba(201, 168, 76, 0.08);
+}
+
+/* === Settings preferences groups === */
+preferencesgroup > box > box > label {
+    color: #d4af57;
+}
+
+/* Preferences group content area */
+preferencesgroup {
+    background-color: transparent;
+}
+
+list,
+list > row {
+    background-color: #232840;
+    color: #e8e0d0;
+}
+
+/* === Hero carousel === */
+.hero-carousel {
+    min-height: 380px;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.hero-slide {
+    min-height: 380px;
+    border-radius: 16px;
+    background-color: #232840;
+}
+
+.hero-slide-overlay {
+    background: linear-gradient(transparent, rgba(28, 33, 49, 0.6) 30%, rgba(28, 33, 49, 0.95));
+    padding: 32px 24px 24px 24px;
+    border-radius: 0 0 16px 16px;
+}
+
+.hero-slide-overlay .title-1 {
+    color: #e8e0d0;
+}
+
+.hero-action-btn {
+    background-color: #c9a84c;
+    color: #1c2131;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 10px 24px;
+    margin-top: 8px;
+}
+
+.hero-action-btn:hover {
+    background-color: #d9b85c;
+}
+
+/* === Trending sidebar === */
+.trending-sidebar {
+    background-color: #1e2438;
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.trending-sidebar .boxed-list {
+    background-color: transparent;
+    border: none;
+}
+
+.trending-sidebar .boxed-list > row {
+    background-color: transparent;
+    border: none;
+}
+
+.trending-row {
+    padding: 8px;
+    border-radius: 10px;
+}
+
+.trending-row:hover {
+    background-color: rgba(201, 168, 76, 0.08);
+}
+
+.trending-row-thumb {
+    border-radius: 8px;
+    min-width: 56px;
+    min-height: 56px;
+}
+
+.trending-row-title {
+    color: #e8e0d0;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.trending-row-subtitle {
+    color: #8a8070;
+    font-size: 11px;
+}
+
+/* === Section titles === */
+.section-title {
+    color: #d4af57;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+/* === Discover scroll arrows === */
+.discover-scroll-arrow {
+    background-color: rgba(28, 33, 49, 0.85);
+    color: #e8e0d0;
+    border-radius: 9999px;
+    min-width: 36px;
+    min-height: 36px;
+}
+
+.discover-scroll-arrow:hover {
+    background-color: rgba(201, 168, 76, 0.3);
+    color: #d4af57;
+}
+
+/* === Upcoming repack pills === */
+.upcoming-pill {
+    background-color: rgba(201, 168, 76, 0.10);
+    color: #c9a84c;
+    border-radius: 9999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* === Browse filter pills === */
+.browse-filter-btn {
+    background-color: transparent;
+    color: #8a8070;
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-weight: 600;
+}
+
+.browse-filter-btn:checked {
+    background-color: rgba(201, 168, 76, 0.15);
+    color: #d4af57;
+}
+
+.browse-filter-btn:hover:not(:checked) {
+    background-color: rgba(201, 168, 76, 0.08);
+    color: #e8e0d0;
+}
+
+/* === ViewSwitcher tabs === */
+viewswitcher > button {
+    color: #8a8070;
+}
+
+viewswitcher > button:checked {
+    color: #d4af57;
+}
+
+viewswitcher > button:hover:not(:checked) {
+    color: #e8e0d0;
+}
+
+/* === Popovers and dialogs === */
+popover > contents,
+messagedialog > .dialog-layout {
+    background-color: #232840;
+    color: #e8e0d0;
+}
+
+/* === Game detail view (side-by-side layout) === */
+
+/* Back button */
+.detail-back-btn {
+    background-color: rgba(35, 40, 64, 0.8);
+    color: #e8e0d0;
+    border-radius: 9999px;
+    min-width: 40px;
+    min-height: 40px;
+}
+
+.detail-back-btn:hover {
+    background-color: rgba(201, 168, 76, 0.3);
+    color: #d4af57;
+}
+
+/* Title */
+.detail-title {
+    color: #e8e0d0;
+    font-size: 32px;
+    font-weight: bold;
+}
+
+/* Cover art on right side */
+.detail-cover-frame {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.detail-cover-image {
+    border-radius: 12px;
+    border: 1px solid rgba(201, 168, 76, 0.12);
+}
+
+/* Bright install button — high contrast white on green */
+.detail-install-btn {
+    background-color: #4caf50;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 12px 40px;
+    min-height: 48px;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+.detail-install-btn:hover {
+    background-color: #5cbf60;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.5);
+}
+
+.detail-install-btn:insensitive {
+    background-color: rgba(76, 175, 80, 0.35);
+    color: rgba(255, 255, 255, 0.5);
+    box-shadow: none;
+}
+
+/* Description text */
+.detail-description {
+    color: #c0b89a;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* System requirements text */
+.detail-sysreq-text {
+    color: #b0a88a;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Size badges */
+.detail-size-badge {
+    background-color: rgba(201, 168, 76, 0.18);
+    color: #d4af57;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.detail-size-badge-dim {
+    background-color: rgba(232, 224, 208, 0.08);
+    color: #8a8070;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+/* Genre pills */
+.detail-tag {
+    background-color: rgba(201, 168, 76, 0.10);
+    color: #d4af57;
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Screenshot thumbnails */
+.screenshot-thumb {
+    border-radius: 12px;
+    border: 1px solid rgba(201, 168, 76, 0.08);
+}
+
+carouselindicatordots {
+    color: #c9a84c;
+}
+
+/* === ProtonDB tier badges === */
+.detail-protondb-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.85em;
+    border: none;
+    box-shadow: none;
+    cursor: pointer;
+}
+.detail-protondb-badge:hover {
+    opacity: 0.85;
+}
+.protondb-platinum { background: #b4c7dc; color: #1a1a2e; }
+.protondb-gold     { background: #cfb53b; color: #1a1a2e; }
+.protondb-silver   { background: #a6a6a6; color: #1a1a2e; }
+.protondb-bronze   { background: #cd7f32; color: #1a1a2e; }
+.protondb-borked   { background: #ff0000; color: #ffffff; }
+
+/* === Hero fly-over animation === */
+.hero-fly-image {
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    background-color: #232840;
+}

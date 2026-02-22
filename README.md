@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo/7seas-nobg.png" alt="7-Seas Logo" width="120">
+  <img src="logo/c08a1afd-85b1-42c3-97c7-aecca52302b3.jpg" alt="7-Seas Logo" width="120" style="border-radius: 50%;">
 </p>
 
 <h1 align="center">7-Seas Launcher</h1>
@@ -55,6 +55,7 @@ All pipeline steps run in the background. Closing the window hides to the system
 - **Installer retry** &mdash; Re-run FitGirl setup if integrity checks fail, without restarting the whole pipeline
 - **Steam artwork** &mdash; Grid, hero, logo, and icon art fetched from SteamGridDB and placed in the correct directories
 - **Proton auto-config** &mdash; Automatically sets Proton for every game with engine-specific DLL overrides (Unity, Unreal)
+- **ProtonDB ratings** &mdash; Shows Proton compatibility tier (Platinum/Gold/Silver/Bronze/Borked) as a color-coded badge on the detail page, with a click-through to ProtonDB
 - **Smart exe detection** &mdash; Scores executables by file size, directory depth, and name patterns to find the real game binary
 - **System tray** &mdash; Minimizes to tray on close, continues downloads in background, desktop notifications on completion
 - **Nautical theme** &mdash; Navy background, gold accents, Pirata One font
