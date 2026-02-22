@@ -91,29 +91,6 @@ class DiscoverView(Gtk.ScrolledWindow):
         self._trending_list.add_css_class("boxed-list")
         sidebar.append(self._trending_list)
 
-        # --- Upcoming Repacks section ---
-        self._upcoming_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self._upcoming_section.set_visible(False)
-        root.append(self._upcoming_section)
-
-        upcoming_label = Gtk.Label(label="Upcoming Repacks")
-        upcoming_label.set_halign(Gtk.Align.START)
-        upcoming_label.add_css_class("section-title")
-        self._upcoming_section.append(upcoming_label)
-
-        self._upcoming_flow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self._upcoming_flow.set_halign(Gtk.Align.START)
-        upcoming_wrap = Gtk.FlowBox()
-        upcoming_wrap.set_valign(Gtk.Align.START)
-        upcoming_wrap.set_max_children_per_line(5)
-        upcoming_wrap.set_min_children_per_line(2)
-        upcoming_wrap.set_selection_mode(Gtk.SelectionMode.NONE)
-        upcoming_wrap.set_homogeneous(False)
-        upcoming_wrap.set_column_spacing(6)
-        upcoming_wrap.set_row_spacing(6)
-        self._upcoming_flow = upcoming_wrap
-        self._upcoming_section.append(self._upcoming_flow)
-
         # --- Discover Something New section ---
         discover_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         root.append(discover_header)
@@ -145,6 +122,41 @@ class DiscoverView(Gtk.ScrolledWindow):
 
         self._discover_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._discover_scroll.set_child(self._discover_row)
+
+        # --- Upcoming Repacks section (below discover) ---
+        self._upcoming_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._upcoming_section.set_visible(False)
+        root.append(self._upcoming_section)
+
+        upcoming_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._upcoming_section.append(upcoming_header)
+
+        upcoming_label = Gtk.Label(label="Upcoming Repacks")
+        upcoming_label.set_halign(Gtk.Align.START)
+        upcoming_label.set_hexpand(True)
+        upcoming_label.add_css_class("section-title")
+        upcoming_header.append(upcoming_label)
+
+        up_arrow_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        upcoming_header.append(up_arrow_box)
+
+        up_left = Gtk.Button(icon_name="go-previous-symbolic")
+        up_left.add_css_class("discover-scroll-arrow")
+        up_left.connect("clicked", self._on_upcoming_scroll_left)
+        up_arrow_box.append(up_left)
+
+        up_right = Gtk.Button(icon_name="go-next-symbolic")
+        up_right.add_css_class("discover-scroll-arrow")
+        up_right.connect("clicked", self._on_upcoming_scroll_right)
+        up_arrow_box.append(up_right)
+
+        self._upcoming_scroll = Gtk.ScrolledWindow()
+        self._upcoming_scroll.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
+        self._upcoming_scroll.set_min_content_height(340)
+        self._upcoming_section.append(self._upcoming_scroll)
+
+        self._upcoming_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._upcoming_scroll.set_child(self._upcoming_row)
 
         # Loading spinner (centered)
         self._spinner = Gtk.Spinner()
@@ -187,9 +199,58 @@ class DiscoverView(Gtk.ScrolledWindow):
     def _fetch_upcoming(self) -> None:
         try:
             names = self._scraper.get_upcoming()
-            GLib.idle_add(self._populate_upcoming, names)
+            if not names:
+                return
+            items = []  # list of (name, cover_url | None)
+            if self._sgdb_api_key:
+                import httpx as _httpx
+                from sevenseas.core.steamgriddb import SteamGridDBClient
+                sgdb = SteamGridDBClient(api_key=self._sgdb_api_key)
+                for name in names:
+                    cover_url = self._resolve_grid_art(name, sgdb, _httpx)
+                    items.append((name, cover_url))
+            else:
+                items = [(n, None) for n in names]
+            GLib.idle_add(self._populate_upcoming, items)
         except Exception:
             pass
+
+    def _resolve_grid_art(self, name, sgdb, _httpx):
+        """Resolve a Steam grid cover URL for a game name."""
+        try:
+            clean = self._clean_title(name)
+            # Try Steam CDN grid first
+            appid = sgdb.get_steam_appid(clean)
+            if appid:
+                cdn_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{appid}/library_600x900_2x.jpg"
+                try:
+                    resp = _httpx.head(cdn_url, follow_redirects=True, timeout=10.0)
+                    if resp.status_code == 200:
+                        return cdn_url
+                except Exception:
+                    pass
+            # Fall back to SteamGridDB community grids
+            search_terms = self._search_variations(clean)
+            game_id = None
+            for term in search_terms:
+                results = sgdb.search_game(term)
+                if results:
+                    game_id = results[0]["id"]
+                    break
+            if game_id is None:
+                return None
+            resp = sgdb._http.get(
+                f"/grids/game/{game_id}",
+                params={"dimensions": "600x900", "types": "static"},
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            if data:
+                best = max(data, key=lambda x: x.get("score", 0))
+                return best["url"]
+        except Exception:
+            pass
+        return None
 
     def _populate_hero_and_discover(self, results) -> None:
         self._spinner.stop()
@@ -219,14 +280,16 @@ class DiscoverView(Gtk.ScrolledWindow):
             )
             self._trending_list.append(row)
 
-    def _populate_upcoming(self, names) -> None:
-        if not names:
+    def _populate_upcoming(self, items) -> None:
+        if not items:
             return
         self._upcoming_section.set_visible(True)
-        for name in names:
-            pill = Gtk.Label(label=name)
-            pill.add_css_class("upcoming-pill")
-            self._upcoming_flow.append(pill)
+        for name, cover_url in items:
+            card = GameCard(
+                title=name,
+                thumbnail_url=cover_url,
+            )
+            self._upcoming_row.append(card)
 
     def _make_hero_slide(self, game_result):
         """Create a hero carousel slide with image overlay."""
@@ -425,4 +488,14 @@ class DiscoverView(Gtk.ScrolledWindow):
 
     def _on_discover_scroll_right(self, button) -> None:
         adj = self._discover_scroll.get_hadjustment()
+        adj.set_value(min(adj.get_value() + 400, adj.get_upper() - adj.get_page_size()))
+
+    # --- Upcoming row scrolling ---
+
+    def _on_upcoming_scroll_left(self, button) -> None:
+        adj = self._upcoming_scroll.get_hadjustment()
+        adj.set_value(max(adj.get_value() - 400, adj.get_lower()))
+
+    def _on_upcoming_scroll_right(self, button) -> None:
+        adj = self._upcoming_scroll.get_hadjustment()
         adj.set_value(min(adj.get_value() + 400, adj.get_upper() - adj.get_page_size()))
