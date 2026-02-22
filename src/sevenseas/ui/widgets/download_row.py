@@ -10,8 +10,8 @@ from gi.repository import Gtk, Adw, GLib
 from sevenseas.ui.widgets.game_card import (
     _CACHE_DIR, cache_path_for_url, atomic_write_cache,
 )
-_THUMB_WIDTH = 320
-_THUMB_HEIGHT = 428
+_THUMB_WIDTH = 240
+_THUMB_HEIGHT = 321
 
 
 def _format_speed(bps: int) -> str:
