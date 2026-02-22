@@ -25,6 +25,7 @@ class GameDetailView(Gtk.Box):
         self._on_back = on_back
         self._current_url: str | None = None
         self._current_title: str | None = None
+        self._current_thumbnail: str | None = None
 
         # Scrollable content
         scroll = Gtk.ScrolledWindow()
@@ -189,6 +190,7 @@ class GameDetailView(Gtk.Box):
         self.clear()
         self._current_url = game_result.url
         self._current_title = game_result.title
+        self._current_thumbnail = game_result.thumbnail
         self._title_label.set_text(game_result.title)
 
         if game_result.size_info:
@@ -300,7 +302,7 @@ class GameDetailView(Gtk.Box):
 
     def _on_install_clicked(self, button: Gtk.Button) -> None:
         if self._on_install and self._current_title and self._current_url:
-            self._on_install(self._current_title, self._current_url)
+            self._on_install(self._current_title, self._current_url, self._current_thumbnail)
 
     def _on_back_clicked(self, button: Gtk.Button) -> None:
         if self._on_back:
@@ -329,6 +331,7 @@ class GameDetailView(Gtk.Box):
         self._spinner.stop()
         self._current_url = None
         self._current_title = None
+        self._current_thumbnail = None
         while child := self._genres_box.get_first_child():
             self._genres_box.remove(child)
         while child := self._gallery_box.get_first_child():

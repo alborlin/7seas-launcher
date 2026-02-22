@@ -477,7 +477,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _get_scraper_for_url(self, url: str):
         return self._services["scraper"]
 
-    def _on_install_requested(self, title, url):
+    def _on_install_requested(self, title, url, thumbnail=None):
         import threading
 
         if not self._download_manager:
@@ -495,13 +495,13 @@ class MainWindow(Adw.ApplicationWindow):
                     return
 
                 slug = scraper.slug_from_url(url)
+                cover_url = thumbnail or (detail.screenshots[0] if detail.screenshots else None)
                 game = self._library.add_game(
                     title=title, slug=slug, source_url=url,
-                    cover_url=detail.screenshots[0] if detail.screenshots else None,
+                    cover_url=cover_url,
                     size_bytes=None,
                 )
 
-                cover_url = detail.screenshots[0] if detail.screenshots else None
                 GLib.idle_add(self._downloads_view.add_download, game.id, title, cover_url)
                 GLib.idle_add(self.set_status, f"Starting download: {title}")
                 GLib.idle_add(self._navigate_to, "downloads")

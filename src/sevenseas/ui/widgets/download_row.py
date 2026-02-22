@@ -10,8 +10,8 @@ from gi.repository import Gtk, Adw, GLib
 from sevenseas.ui.widgets.game_card import (
     _CACHE_DIR, cache_path_for_url, atomic_write_cache,
 )
-_THUMB_WIDTH = 80
-_THUMB_HEIGHT = 107
+_THUMB_WIDTH = 320
+_THUMB_HEIGHT = 428
 
 
 def _format_speed(bps: int) -> str:
@@ -54,7 +54,7 @@ class DownloadRow(Gtk.Box):
         thumb_frame.append(thumb_overlay)
 
         self._placeholder = Gtk.Image.new_from_icon_name("applications-games-symbolic")
-        self._placeholder.set_pixel_size(24)
+        self._placeholder.set_pixel_size(48)
         self._placeholder.set_opacity(0.3)
         self._placeholder.set_halign(Gtk.Align.CENTER)
         self._placeholder.set_valign(Gtk.Align.CENTER)
