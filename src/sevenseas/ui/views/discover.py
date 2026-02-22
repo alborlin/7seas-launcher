@@ -363,21 +363,6 @@ class DiscoverView(Gtk.ScrolledWindow):
                 except Exception:
                     pass
 
-                # 3. Fallback to grid cover
-                if not image_url:
-                    try:
-                        resp = sgdb._http.get(
-                            f"/grids/game/{game_id}",
-                            params={"types": "static", "dimensions": "600x900"},
-                        )
-                        resp.raise_for_status()
-                        data = resp.json().get("data", [])
-                        if data:
-                            best = max(data, key=lambda x: x.get("score", 0))
-                            image_url = best["url"]
-                    except Exception:
-                        pass
-
             if not image_url:
                 return
 
