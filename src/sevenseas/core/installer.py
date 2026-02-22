@@ -64,9 +64,15 @@ class BottlesInstaller:
             raise InstallError(f"Failed to create bottle: {result.stderr}")
 
     def run_installer(
-        self, exe_path: str, extra_args: list[str] | None = None
+        self, exe_path: str, extra_args: list[str] | None = None,
+        proc_callback=None,
     ) -> bool:
-        """Run an .exe installer through Bottles."""
+        """Run an .exe installer through Bottles.
+
+        Args:
+            proc_callback: If provided, called with the Popen object so the
+                           caller can kill the process for cancellation.
+        """
         cmd = self._bottles_cmd()
         args = cmd + ["run", "-b", self._bottle_name, "-e", exe_path]
         if extra_args:
@@ -74,12 +80,20 @@ class BottlesInstaller:
         log.info("Running installer: %s", " ".join(args))
         # FitGirl repacks decompress heavily compressed data and can
         # take 1-2+ hours for large games.  4-hour timeout.
-        result = subprocess.run(args, capture_output=True, text=True, timeout=14400)
-        log.info("Installer stdout: %s", result.stdout[-500:] if result.stdout else "")
-        log.info("Installer stderr: %s", result.stderr[-500:] if result.stderr else "")
-        if result.returncode != 0:
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if proc_callback:
+            proc_callback(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=14400)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            raise
+        log.info("Installer stdout: %s", stdout[-500:] if stdout else "")
+        log.info("Installer stderr: %s", stderr[-500:] if stderr else "")
+        if proc.returncode != 0:
             raise InstallError(
-                f"Bottles installer failed (code {result.returncode}): {result.stderr}"
+                f"Bottles installer failed (code {proc.returncode}): {stderr}"
             )
         return True
 

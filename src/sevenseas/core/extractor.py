@@ -15,17 +15,26 @@ class Extractor:
     def __init__(self, sevenz_bin: str = "7z") -> None:
         self._bin = sevenz_bin
 
-    def extract(self, archive_path: str, dest_dir: str) -> None:
-        """Extract an archive to the destination directory."""
+    def extract(self, archive_path: str, dest_dir: str, proc_callback=None) -> None:
+        """Extract an archive to the destination directory.
+
+        Args:
+            proc_callback: If provided, called with the Popen object so the
+                           caller can kill the process for cancellation.
+        """
         os.makedirs(dest_dir, exist_ok=True)
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [self._bin, "x", archive_path, f"-o{dest_dir}", "-y"],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
         )
-        if result.returncode != 0:
+        if proc_callback:
+            proc_callback(proc)
+        stdout, stderr = proc.communicate()
+        if proc.returncode != 0:
             raise ExtractionError(
-                f"7z extraction failed (code {result.returncode}): {result.stderr}"
+                f"7z extraction failed (code {proc.returncode}): {stderr}"
             )
 
     def find_setup_exe(self, directory: str) -> str | None:

@@ -12,6 +12,15 @@ def installer():
     return BottlesInstaller(bottle_name="test-bottle")
 
 
+def _mock_popen(returncode=0, stdout="", stderr=""):
+    """Create a mock Popen that behaves like a real one."""
+    proc = MagicMock()
+    proc.communicate.return_value = (stdout, stderr)
+    proc.returncode = returncode
+    proc.poll.return_value = returncode
+    return proc
+
+
 def test_ensure_bottle_creates_if_missing(installer):
     with patch("sevenseas.core.installer.shutil.which", return_value="bottles-cli"), \
          patch("sevenseas.core.installer.subprocess.run") as mock_run:
@@ -37,18 +46,18 @@ def test_ensure_bottle_skips_if_exists(installer):
 
 def test_run_installer_calls_bottles_cli(installer):
     with patch("sevenseas.core.installer.shutil.which", return_value="bottles-cli"), \
-         patch("sevenseas.core.installer.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="Done")
+         patch("sevenseas.core.installer.subprocess.Popen") as mock_popen_cls:
+        mock_popen_cls.return_value = _mock_popen(returncode=0, stdout="Done")
         result = installer.run_installer("/tmp/setup.exe", ["/S"])
         assert result is True
-        args = mock_run.call_args[0][0]
+        args = mock_popen_cls.call_args[0][0]
         assert "/tmp/setup.exe" in " ".join(args)
 
 
 def test_run_installer_raises_on_failure(installer):
     with patch("sevenseas.core.installer.shutil.which", return_value="bottles-cli"), \
-         patch("sevenseas.core.installer.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=1, stderr="Wine error")
+         patch("sevenseas.core.installer.subprocess.Popen") as mock_popen_cls:
+        mock_popen_cls.return_value = _mock_popen(returncode=1, stderr="Wine error")
         with pytest.raises(InstallError):
             installer.run_installer("/tmp/bad.exe")
 

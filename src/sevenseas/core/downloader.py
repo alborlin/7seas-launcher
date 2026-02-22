@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -59,6 +60,8 @@ class DownloadManager:
         self.active_download: QueueItem | None = None
         self._cancelled: set[int] = set()
         self._retry_install: set[int] = set()
+        self._active_proc: subprocess.Popen | None = None
+        self._proc_lock = threading.Lock()
         self._on_progress: list[Callable] = []
         self._on_complete: list[Callable] = []
         self._on_error: list[Callable] = []
@@ -92,14 +95,30 @@ class DownloadManager:
         log.info("Reinstall requested for game_id=%d", game_id)
 
     def cancel(self, game_id: int) -> None:
-        """Cancel a download by game_id."""
+        """Cancel a download by game_id — kills any active subprocess immediately."""
         self._cancelled.add(game_id)
         # Remove from queue if still pending
         self.queue = [q for q in self.queue if q.game_id != game_id]
+        # Kill any active subprocess (installer, extractor, etc.)
+        with self._proc_lock:
+            proc = self._active_proc
+        if proc:
+            try:
+                proc.kill()
+            except OSError:
+                pass
         log.info("Cancelled download for game_id=%d", game_id)
 
     def _is_cancelled(self, item: QueueItem) -> bool:
         return item.game_id in self._cancelled
+
+    def _track_proc(self, proc: subprocess.Popen) -> None:
+        with self._proc_lock:
+            self._active_proc = proc
+
+    def _clear_proc(self) -> None:
+        with self._proc_lock:
+            self._active_proc = None
 
     def enqueue(self, game_id: int, magnet: str) -> QueueItem:
         """Add a game to the download queue."""
@@ -156,7 +175,8 @@ class DownloadManager:
             self._library.update_status(item.game_id, "extracting")
             self._notify_progress(item)
             extract_dir = local_path + "_extracted"
-            self._extractor.extract(local_path, extract_dir)
+            self._extractor.extract(local_path, extract_dir, proc_callback=self._track_proc)
+            self._clear_proc()
             self._check_cancelled(item)
 
             game = self._library.get_by_id(item.game_id)
@@ -178,7 +198,11 @@ class DownloadManager:
 
                 # Loop: run installer, check if retry was requested, repeat
                 while True:
-                    self._installer.run_installer(setup_exe, extra_args=[f'/DIR="{install_dir}"'])
+                    self._installer.run_installer(
+                        setup_exe, extra_args=[f'/DIR="{install_dir}"'],
+                        proc_callback=self._track_proc,
+                    )
+                    self._clear_proc()
                     used_bottles = True
                     self._check_cancelled(item)
                     if item.game_id not in self._retry_install:
@@ -189,6 +213,7 @@ class DownloadManager:
                     self._notify_progress(item)
 
             # Step 6: Move to games dir
+            self._check_cancelled(item)
             item.state = DownloadState.MOVING
             self._notify_progress(item)
             game_dir = extract_dir
@@ -205,6 +230,7 @@ class DownloadManager:
             self._library.update_game(item.game_id, install_path=dest)
 
             # Step 7: Add to Steam (non-fatal — don't fail the install over this)
+            self._check_cancelled(item)
             try:
                 exe = self._find_game_exe(dest)
                 if exe:
@@ -271,6 +297,7 @@ class DownloadManager:
             self._notify_error(item)
 
         finally:
+            self._clear_proc()
             if item in self.queue:
                 self.queue.remove(item)
             self.active_download = None

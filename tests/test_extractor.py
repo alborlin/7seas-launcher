@@ -8,13 +8,22 @@ from unittest.mock import patch, MagicMock
 from sevenseas.core.extractor import Extractor, ExtractionError
 
 
+def _mock_popen(returncode=0, stdout="", stderr=""):
+    """Create a mock Popen that behaves like a real one."""
+    proc = MagicMock()
+    proc.communicate.return_value = (stdout, stderr)
+    proc.returncode = returncode
+    proc.poll.return_value = returncode
+    return proc
+
+
 def test_extract_calls_7z_with_correct_args():
-    with patch("sevenseas.core.extractor.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="Everything is Ok")
+    with patch("sevenseas.core.extractor.subprocess.Popen") as mock_popen_cls:
+        mock_popen_cls.return_value = _mock_popen(returncode=0)
         ext = Extractor()
         ext.extract("/tmp/archive.7z", "/tmp/output")
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
+        mock_popen_cls.assert_called_once()
+        args = mock_popen_cls.call_args[0][0]
         assert "7z" in args[0]
         assert "x" in args
         assert "/tmp/archive.7z" in args
@@ -22,8 +31,8 @@ def test_extract_calls_7z_with_correct_args():
 
 
 def test_extract_raises_on_failure():
-    with patch("sevenseas.core.extractor.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=2, stderr="Error: file not found")
+    with patch("sevenseas.core.extractor.subprocess.Popen") as mock_popen_cls:
+        mock_popen_cls.return_value = _mock_popen(returncode=2, stderr="Error: file not found")
         ext = Extractor()
         with pytest.raises(ExtractionError):
             ext.extract("/tmp/bad.7z", "/tmp/output")
@@ -31,8 +40,8 @@ def test_extract_raises_on_failure():
 
 def test_extract_creates_output_dir(tmp_path):
     dest = tmp_path / "output"
-    with patch("sevenseas.core.extractor.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="Everything is Ok")
+    with patch("sevenseas.core.extractor.subprocess.Popen") as mock_popen_cls:
+        mock_popen_cls.return_value = _mock_popen(returncode=0)
         ext = Extractor()
         ext.extract("/tmp/archive.7z", str(dest))
         assert dest.exists()
