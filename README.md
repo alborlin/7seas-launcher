@@ -12,7 +12,7 @@
   Built with <strong>GTK4 + Libadwaita</strong> &bull; Nautical theme &bull; Arch Linux focused
 </p>
 
-> **Requires a [Torbox](https://torbox.app/) API key.** All downloads go through Torbox's debrid service &mdash; you'll need an account and API key before you can install anything. Grab one from your [Torbox dashboard](https://torbox.app/settings).
+> **Requires a [Torbox](https://torbox.app/) API key.** All downloads go through Torbox's debrid service &mdash; you'll need an account and API key before you can install anything. [Get a Torbox subscription](https://torbox.app/subscription?referral=ac555d57-5be1-4f54-8b4c-7dcb6ecf213b) and grab your key from the [dashboard](https://torbox.app/settings).
 
 ---
 
