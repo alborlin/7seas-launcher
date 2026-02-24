@@ -10,7 +10,7 @@ from sevenseas.ui.widgets.download_row import DownloadRow
 
 _STAGE_LABELS = {
     "pending": "Queued",
-    "torbox_downloading": "Waiting on Torbox",
+    "downloading": "Downloading",
     "pulling": "Downloading",
     "extracting": "Extracting",
     "installing": "Running Installer",

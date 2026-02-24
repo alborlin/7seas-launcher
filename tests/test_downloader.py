@@ -11,7 +11,7 @@ def deps():
     """Mock all dependencies."""
     return {
         "db": MagicMock(),
-        "torbox": MagicMock(),
+        "backend": MagicMock(),
         "extractor": MagicMock(),
         "installer": MagicMock(),
         "library": MagicMock(),
@@ -52,7 +52,7 @@ def test_enqueue_starts_if_idle(manager, deps):
 def test_download_state_transitions():
     """Verify the state enum values."""
     assert DownloadState.PENDING.value == "pending"
-    assert DownloadState.TORBOX_DOWNLOADING.value == "torbox_downloading"
+    assert DownloadState.DOWNLOADING.value == "downloading"
     assert DownloadState.PULLING.value == "pulling"
     assert DownloadState.EXTRACTING.value == "extracting"
     assert DownloadState.INSTALLING.value == "installing"

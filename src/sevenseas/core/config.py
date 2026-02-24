@@ -11,6 +11,10 @@ class ConfigService:
         "games_dir": os.path.expanduser("~/Games"),
         "bottles_name": "7seas-installer",
         "auto_add_steam": "true",
+        "download_method": "torbox",
+        "bt_host": "localhost",
+        "bt_port": "",
+        "bt_username": "",
     }
 
     def __init__(self, db: sqlite3.Connection) -> None:
@@ -50,6 +54,26 @@ class ConfigService:
     @property
     def auto_add_steam(self) -> bool:
         return self.get("auto_add_steam", "true").lower() == "true"
+
+    @property
+    def download_method(self) -> str:
+        return self.get("download_method", "torbox")
+
+    @property
+    def bt_host(self) -> str:
+        return self.get("bt_host", "localhost")
+
+    @property
+    def bt_port(self) -> str:
+        return self.get("bt_port", "")
+
+    @property
+    def bt_username(self) -> str:
+        return self.get("bt_username", "")
+
+    @property
+    def bt_password(self) -> str | None:
+        return self.get("bt_password")
 
     @property
     def proton_version(self) -> str | None:

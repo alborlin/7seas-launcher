@@ -20,7 +20,7 @@ RETRY_BACKOFF_BASE = 2  # seconds
 
 class DownloadState(Enum):
     PENDING = "pending"
-    TORBOX_DOWNLOADING = "torbox_downloading"
+    DOWNLOADING = "downloading"
     PULLING = "pulling"
     EXTRACTING = "extracting"
     INSTALLING = "installing"
@@ -38,7 +38,7 @@ class DownloadState(Enum):
 class QueueItem:
     game_id: int
     magnet: str
-    torbox_id: int | None = None
+    backend_id: str | None = None
     state: DownloadState = DownloadState.PENDING
     progress: float = 0.0
     speed_bps: int = 0
@@ -48,9 +48,9 @@ class QueueItem:
 class DownloadManager:
     """Manages the download queue and orchestrates the install pipeline."""
 
-    def __init__(self, db, torbox, extractor, installer, library, steam, config):
+    def __init__(self, db, backend, extractor, installer, library, steam, config):
         self._db = db
-        self._torbox = torbox
+        self._backend = backend
         self._extractor = extractor
         self._installer = installer
         self._library = library
@@ -97,6 +97,13 @@ class DownloadManager:
     def cancel(self, game_id: int) -> None:
         """Cancel a download by game_id — kills any active subprocess immediately."""
         self._cancelled.add(game_id)
+        # Cancel on the backend if there's an active download with a backend_id
+        item = self.active_download if self.active_download and self.active_download.game_id == game_id else None
+        if item and item.backend_id:
+            try:
+                self._backend.cancel(item.backend_id)
+            except Exception as e:
+                log.warning("Backend cancel failed for game_id=%d: %s", game_id, e)
         # Remove from queue if still pending
         self.queue = [q for q in self.queue if q.game_id != game_id]
         # Kill any active subprocess (installer, extractor, etc.)
@@ -151,33 +158,46 @@ class DownloadManager:
 
     def _process_item(self, item: QueueItem) -> None:
         """Run the full pipeline for one queue item."""
+        local_path = None
+        extract_dir = None
         try:
-            # Step 1: Send to Torbox
+            # Step 1: Add magnet to backend
             log.info("Starting pipeline for game_id=%d", item.game_id)
-            item.state = DownloadState.TORBOX_DOWNLOADING
+            item.state = DownloadState.DOWNLOADING
             self._library.update_status(item.game_id, "downloading")
-            item.torbox_id = self._torbox.create_torrent(item.magnet)
-            log.info("Torbox torrent created: torbox_id=%s", item.torbox_id)
+            item.backend_id = self._backend.add_magnet(item.magnet)
+            log.info("Backend torrent created: backend_id=%s", item.backend_id)
             self._notify_progress(item)
 
-            # Step 2: Poll until Torbox has the file
-            self._poll_torbox(item)
+            # Step 2: Poll until backend has the file
+            self._poll_backend(item)
             self._check_cancelled(item)
 
-            # Step 3: Pull file from Torbox CDN
-            item.state = DownloadState.PULLING
-            self._notify_progress(item)
-            local_path = self._pull_from_torbox(item)
-            self._check_cancelled(item)
+            # Step 3-4: Get files — path depends on backend type
+            if self._backend.requires_pull():
+                # Torbox path: pull ZIP from CDN, then extract
+                item.state = DownloadState.PULLING
+                self._notify_progress(item)
+                local_path = self._pull_from_backend(item)
+                self._check_cancelled(item)
 
-            # Step 4: Extract
-            item.state = DownloadState.EXTRACTING
-            self._library.update_status(item.game_id, "extracting")
-            self._notify_progress(item)
-            extract_dir = local_path + "_extracted"
-            self._extractor.extract(local_path, extract_dir, proc_callback=self._track_proc)
-            self._clear_proc()
-            self._check_cancelled(item)
+                item.state = DownloadState.EXTRACTING
+                self._library.update_status(item.game_id, "extracting")
+                self._notify_progress(item)
+                extract_dir = local_path + "_extracted"
+                self._extractor.extract(local_path, extract_dir, proc_callback=self._track_proc)
+                self._clear_proc()
+                self._check_cancelled(item)
+            else:
+                # Local BT path: files already on disk
+                download_path = self._backend.get_download_path(item.backend_id)
+                if not download_path:
+                    raise RuntimeError("Backend finished but no download path available")
+                item.state = DownloadState.EXTRACTING
+                self._library.update_status(item.game_id, "extracting")
+                self._notify_progress(item)
+                extract_dir = self._prepare_local_download(download_path, item)
+                self._check_cancelled(item)
 
             game = self._library.get_by_id(item.game_id)
             dir_name = self._clean_dir_name(game.title)
@@ -271,15 +291,25 @@ class DownloadManager:
             except Exception as e:
                 log.warning("Steam shortcut failed for game_id=%d: %s (non-fatal)", item.game_id, e)
 
-            # Cleanup temp files
+            # Cleanup temp files (only files we created, not the BT client's download dir)
             item.state = DownloadState.CLEANING_UP
             self._notify_progress(item)
             try:
-                if os.path.exists(local_path):
+                if local_path and os.path.exists(local_path):
                     os.remove(local_path)
-                if os.path.isdir(extract_dir):
-                    import shutil
-                    shutil.rmtree(extract_dir)
+                if extract_dir and os.path.isdir(extract_dir):
+                    # Only remove extract_dir if it's a temp dir we created,
+                    # not the BT client's download directory
+                    if not self._backend.requires_pull():
+                        download_path = self._backend.get_download_path(item.backend_id) if item.backend_id else None
+                        if download_path and os.path.realpath(extract_dir) == os.path.realpath(download_path):
+                            log.info("Skipping cleanup of BT download dir: %s", extract_dir)
+                        elif extract_dir.endswith("_extracted"):
+                            import shutil
+                            shutil.rmtree(extract_dir)
+                    else:
+                        import shutil
+                        shutil.rmtree(extract_dir)
                 log.info("Cleaned up temp files for game_id=%d", item.game_id)
             except Exception as e:
                 log.warning("Failed to clean temp files: %s (non-fatal)", e)
@@ -304,15 +334,15 @@ class DownloadManager:
             self.active_download = None
             self._start_next()
 
-    def _poll_torbox(self, item: QueueItem) -> None:
-        """Poll Torbox until the torrent is complete."""
+    def _poll_backend(self, item: QueueItem) -> None:
+        """Poll the backend until the torrent is complete."""
         while True:
-            status = self._torbox.check_status(item.torbox_id)
+            status = self._backend.poll_status(item.backend_id)
             if status is None:
-                log.error("Torrent %s not found on Torbox", item.torbox_id)
-                raise RuntimeError(f"Torrent {item.torbox_id} not found on Torbox")
-            log.debug("Poll torbox_id=%s: state=%s progress=%.1f%%",
-                       item.torbox_id, status.state, status.progress * 100)
+                log.error("Torrent %s not found on backend", item.backend_id)
+                raise RuntimeError(f"Torrent {item.backend_id} not found on backend")
+            log.debug("Poll backend_id=%s: state=%s progress=%.1f%%",
+                       item.backend_id, status.state, status.progress * 100)
             item.progress = status.progress
             item.speed_bps = status.speed_bps
             self._notify_progress(item)
@@ -335,9 +365,9 @@ class DownloadManager:
                     time.sleep(wait)
         raise last_error
 
-    def _pull_from_torbox(self, item: QueueItem) -> str:
-        """Download all torrent files from Torbox CDN as a zip with retry."""
-        url = self._torbox.get_download_url(item.torbox_id, zip_link=True)
+    def _pull_from_backend(self, item: QueueItem) -> str:
+        """Download files from the backend's CDN as a zip with retry."""
+        url = self._backend.get_pull_url(item.backend_id)
         cache_dir = os.path.expanduser("~/.cache/seven-seas")
         os.makedirs(cache_dir, exist_ok=True)
         local_path = os.path.join(cache_dir, f"download_{item.game_id}.zip")
@@ -360,6 +390,46 @@ class DownloadManager:
             return local_path
 
         return self._retry(do_download)
+
+    def _prepare_local_download(self, download_path: str, item: QueueItem) -> str:
+        """Prepare files from a local BT download for installation.
+
+        If the path is a directory with setup.exe, use it directly.
+        If it contains archives but no setup.exe, extract the first archive.
+        If it's a single archive file, extract it.
+        Returns the directory to use for installation.
+        """
+        archive_exts = {".iso", ".zip", ".rar", ".7z"}
+
+        if os.path.isdir(download_path):
+            # Check if setup.exe is already present
+            if self._extractor.find_setup_exe(download_path):
+                log.info("Local download has setup.exe, using directly: %s", download_path)
+                return download_path
+            # Look for an archive to extract
+            for entry in os.listdir(download_path):
+                ext = os.path.splitext(entry)[1].lower()
+                if ext in archive_exts:
+                    archive_path = os.path.join(download_path, entry)
+                    extract_dir = download_path + "_extracted"
+                    log.info("Extracting archive from BT download: %s", archive_path)
+                    self._extractor.extract(archive_path, extract_dir, proc_callback=self._track_proc)
+                    self._clear_proc()
+                    return extract_dir
+            # No archive found — use the directory as-is
+            log.info("No archive in BT download, using directory as-is: %s", download_path)
+            return download_path
+
+        # Single file — extract it
+        ext = os.path.splitext(download_path)[1].lower()
+        if ext in archive_exts:
+            extract_dir = download_path + "_extracted"
+            log.info("Extracting single-file BT download: %s", download_path)
+            self._extractor.extract(download_path, extract_dir, proc_callback=self._track_proc)
+            self._clear_proc()
+            return extract_dir
+
+        raise RuntimeError(f"Don't know how to handle BT download: {download_path}")
 
     @staticmethod
     def _clean_dir_name(title: str) -> str:

@@ -341,13 +341,21 @@ class MainWindow(Adw.ApplicationWindow):
         self._view_stack.add_named(self._downloads_view, "downloads")
         self._views["downloads"] = self._downloads_view
 
-        settings = SettingsView(config, on_api_key_validated=self._on_api_key_validated, steam=services["steam"])
+        settings = SettingsView(
+            config,
+            on_api_key_validated=self._on_api_key_validated,
+            on_backend_validated=self._on_backend_validated,
+            steam=services["steam"],
+        )
         self._view_stack.add_named(settings, "settings")
         self._views["settings"] = settings
 
-        # Initialize download manager if API key is set
+        # Initialize download manager based on configured method
         self._download_manager = None
-        if config.torbox_api_key:
+        method = config.download_method
+        if method == "torbox" and config.torbox_api_key:
+            self._init_download_manager()
+        elif method in ("qbittorrent", "transmission"):
             self._init_download_manager()
 
         # Background update checker
@@ -358,13 +366,20 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(600, self._schedule_update_check)
 
     def _init_download_manager(self):
-        from sevenseas.core.torbox import TorboxClient
+        from sevenseas.core.backends import create_backend
         from sevenseas.core.downloader import DownloadManager
 
-        torbox = TorboxClient(api_key=self._config.torbox_api_key)
+        try:
+            backend = create_backend(self._config)
+        except Exception as e:
+            log.warning("Backend connection failed: %s", e)
+            return
+        if backend is None:
+            return
+
         self._download_manager = DownloadManager(
             db=self._db,
-            torbox=torbox,
+            backend=backend,
             extractor=self._services["extractor"],
             installer=self._services["installer"],
             library=self._library,
@@ -528,7 +543,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_install_requested(self, title, url, thumbnail=None):
         if not self._download_manager:
-            self.set_status("Set your Torbox API key in Settings first")
+            self.set_status("Configure your download method in Settings first")
             self._navigate_to("settings")
             return
 
@@ -585,6 +600,10 @@ class MainWindow(Adw.ApplicationWindow):
             settings_view.set_api_status("API key validated successfully!")
         self._init_download_manager()
 
+    def _on_backend_validated(self):
+        """Called when a BT client connection test succeeds — reinitialize download manager."""
+        self._init_download_manager()
+
     def _on_download_progress(self, item):
         self._downloads_view.update_download(item.game_id, item.state.value, item.progress, item.speed_bps)
         game = self._library.get_by_id(item.game_id)
@@ -632,7 +651,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_sync_steam(self):
         if not self._download_manager:
-            self.set_status("Set your Torbox API key in Settings first")
+            self.set_status("Configure your download method in Settings first")
             self._navigate_to("settings")
             return
 
