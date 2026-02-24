@@ -18,17 +18,35 @@ log = logging.getLogger(__name__)
 class LibraryView(Gtk.Box):
     """Grid of installed games with launch/manage actions."""
 
-    def __init__(self, library_service, steam=None, config=None) -> None:
+    def __init__(self, library_service, steam=None, config=None, on_sync_steam=None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._library = library_service
         self._steam = steam
         self._config = config
+        self._on_sync_steam = on_sync_steam
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        header.set_margin_top(16)
+        header.set_margin_bottom(12)
+        header.set_margin_start(16)
+        header.set_margin_end(16)
 
         title = Gtk.Label(label="Library")
         title.add_css_class("title-1")
-        title.set_margin_top(16)
-        title.set_margin_bottom(12)
-        self.append(title)
+        title.set_hexpand(True)
+        title.set_halign(Gtk.Align.CENTER)
+        header.append(title)
+
+        self._sync_btn = Gtk.Button(label="Sync to Steam")
+        self._sync_btn.set_icon_name("emblem-synchronizing-symbolic")
+        self._sync_btn.add_css_class("flat")
+        self._sync_btn.set_tooltip_text("Add all installed games to Steam")
+        self._sync_btn.set_halign(Gtk.Align.END)
+        self._sync_btn.set_valign(Gtk.Align.CENTER)
+        self._sync_btn.connect("clicked", self._on_sync_clicked)
+        header.append(self._sync_btn)
+
+        self.append(header)
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_vexpand(True)
@@ -63,6 +81,10 @@ class LibraryView(Gtk.Box):
                 steam=self._steam, config=self._config,
             )
             self._flow.append(card)
+
+    def _on_sync_clicked(self, button) -> None:
+        if self._on_sync_steam:
+            self._on_sync_steam()
 
     def _on_delete(self, game) -> None:
         """Delete a game: remove files, Steam shortcut, and DB entry."""

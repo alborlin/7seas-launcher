@@ -243,6 +243,7 @@ class DownloadManager:
                     shortcut_id = self._steam.add_shortcut(
                         dir_name, exe_full, dest,
                         launch_options=launch_opts,
+                        tags=["7-Seas"],
                     )
                     if shortcut_id:
                         self._library.update_game(
@@ -484,6 +485,73 @@ class DownloadManager:
         candidates.sort(key=lambda x: x[0], reverse=True)
         log.info("Exe candidates: %s", [(s, r) for s, r in candidates[:5]])
         return candidates[0][1]
+
+    def add_all_to_steam(self, on_progress=None, on_done=None) -> None:
+        """Add all installed games that are missing from Steam as non-Steam shortcuts.
+
+        Runs the same steps as the install pipeline's Steam integration:
+        add_shortcut → set_compat_tool → install_redists → fetch_artwork.
+        Restarts Steam once at the end.
+
+        Args:
+            on_progress: Called with (current_index, total, game_title) for each game.
+            on_done: Called with (added_count,) when finished.
+        """
+        games = self._library.get_installed()
+        missing = [g for g in games if g.install_path and g.exe_path
+                   and not g.steam_shortcut_id]
+        if not missing:
+            if on_done:
+                on_done(0)
+            return
+
+        added = 0
+        for i, game in enumerate(missing):
+            if on_progress:
+                on_progress(i, len(missing), game.title)
+            try:
+                dest = game.install_path
+                exe_full = os.path.join(dest, game.exe_path)
+
+                # Check if this game already has a shortcut (added outside sync)
+                existing_id = self._steam.find_shortcut_id_by_exe(exe_full)
+                if existing_id:
+                    self._library.update_game(game.id, steam_shortcut_id=existing_id)
+                    log.info("Found existing shortcut for '%s' (id=%d)", game.title, existing_id)
+                    continue
+
+                dir_name = self._clean_dir_name(game.title)
+                launch_opts = self._build_launch_options(dest)
+
+                shortcut_id = self._steam.add_shortcut(
+                    dir_name, exe_full, dest,
+                    launch_options=launch_opts,
+                    tags=["7-Seas"],
+                )
+                if not shortcut_id:
+                    continue
+
+                self._library.update_game(game.id, steam_shortcut_id=shortcut_id)
+                proton = self._config.proton_version or "proton_experimental"
+                self._steam.set_compat_tool(shortcut_id, proton)
+                self._steam.install_redists(shortcut_id, proton)
+
+                if self._config.steamgriddb_api_key:
+                    self._fetch_steam_artwork(game.title, shortcut_id=shortcut_id)
+
+                added += 1
+                log.info("Added '%s' to Steam (shortcut_id=%d)", game.title, shortcut_id)
+            except Exception as e:
+                log.warning("Failed to add '%s' to Steam: %s", game.title, e)
+
+        if added:
+            try:
+                self._steam.restart()
+            except Exception as e:
+                log.warning("Steam restart failed: %s", e)
+
+        if on_done:
+            on_done(added)
 
     @staticmethod
     def _build_launch_options(game_dir: str) -> str:

@@ -36,6 +36,13 @@ class SettingsView(Gtk.Box):
         torbox_group.set_description("Configure your Torbox debrid service connection")
         content.append(torbox_group)
 
+        torbox_link = Gtk.LinkButton(
+            uri="https://torbox.app/subscription?referral=ac555d57-5be1-4f54-8b4c-7dcb6ecf213b",
+            label="Get a Torbox subscription",
+        )
+        torbox_link.set_halign(Gtk.Align.START)
+        torbox_group.add(torbox_link)
+
         self._api_key_row = Adw.PasswordEntryRow()
         self._api_key_row.set_title("API Key")
         current_key = config.torbox_api_key or ""

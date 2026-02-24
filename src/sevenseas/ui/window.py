@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -249,6 +250,47 @@ class MainWindow(Adw.ApplicationWindow):
         if self._is_background and not self._has_active_downloads():
             self._restore_from_background()
 
+    # --- Background update checker ---
+
+    def _schedule_update_check(self) -> bool:
+        """GLib timer callback — spawns background thread for update check."""
+        threading.Thread(target=self._check_for_updates, daemon=True).start()
+        return True
+
+    def _check_for_updates(self) -> None:
+        """Background thread: fetch latest repacks and compare against known set."""
+        try:
+            results = self._scraper.get_latest(page=1)
+            if not results:
+                return
+            current_urls = {r.url for r in results}
+            if self._update_check_first:
+                self._known_repack_urls = current_urls
+                self._update_check_first = False
+                return
+            new_urls = current_urls - self._known_repack_urls
+            if new_urls:
+                new_titles = [r.title for r in results if r.url in new_urls]
+                self._known_repack_urls = current_urls
+                GLib.idle_add(self._notify_new_repacks, new_titles)
+        except Exception:
+            pass
+
+    def _notify_new_repacks(self, titles: list[str]) -> None:
+        """Send desktop notification for newly discovered repacks."""
+        count = len(titles)
+        if count == 1:
+            body = titles[0]
+        elif count <= 3:
+            body = "\n".join(titles)
+        else:
+            body = "\n".join(titles[:3]) + f"\n+ {count - 3} more"
+        self._send_notification(
+            f"{count} New Repack{'s' if count != 1 else ''} Available",
+            body,
+            "new-repacks",
+        )
+
     # --- Service/view wiring ---
 
     def _init_views(self, services, db):
@@ -283,7 +325,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._view_stack.add_titled_with_icon(browse, "browse", "Browse", "view-grid-symbolic")
         self._views["browse"] = browse
 
-        library_view = LibraryView(library, steam=services["steam"], config=config)
+        library_view = LibraryView(library, steam=services["steam"], config=config, on_sync_steam=self._on_sync_steam)
         self._view_stack.add_titled_with_icon(library_view, "library", "Library", "application-x-executable-symbolic")
         self._views["library"] = library_view
 
@@ -307,6 +349,13 @@ class MainWindow(Adw.ApplicationWindow):
         self._download_manager = None
         if config.torbox_api_key:
             self._init_download_manager()
+
+        # Background update checker
+        self._scraper = scraper
+        self._known_repack_urls: set[str] = set()
+        self._update_check_first = True
+        threading.Thread(target=self._check_for_updates, daemon=True).start()
+        GLib.timeout_add_seconds(600, self._schedule_update_check)
 
     def _init_download_manager(self):
         from sevenseas.core.torbox import TorboxClient
@@ -478,8 +527,6 @@ class MainWindow(Adw.ApplicationWindow):
         return self._services["scraper"]
 
     def _on_install_requested(self, title, url, thumbnail=None):
-        import threading
-
         if not self._download_manager:
             self.set_status("Set your Torbox API key in Settings first")
             self._navigate_to("settings")
@@ -518,8 +565,6 @@ class MainWindow(Adw.ApplicationWindow):
         thread.start()
 
     def _on_api_key_validated(self, api_key):
-        import threading
-
         def validate():
             from sevenseas.core.torbox import TorboxClient
             client = TorboxClient(api_key=api_key)
@@ -584,3 +629,39 @@ class MainWindow(Adw.ApplicationWindow):
             self._downloads_view.update_download(game_id, "failed", 0, 0)
             self._update_dl_badge(max(0, self._active_dl_count - 1))
             self.set_status("Download cancelled")
+
+    def _on_sync_steam(self):
+        if not self._download_manager:
+            self.set_status("Set your Torbox API key in Settings first")
+            self._navigate_to("settings")
+            return
+
+        self.set_status("Syncing installed games to Steam...")
+        library_view = self._views.get("library")
+        if library_view:
+            library_view._sync_btn.set_sensitive(False)
+
+        def on_progress(i, total, title):
+            GLib.idle_add(self.set_status, f"Adding to Steam ({i + 1}/{total}): {title}")
+
+        def on_done(count):
+            def finish():
+                if library_view:
+                    library_view._sync_btn.set_sensitive(True)
+                    library_view.refresh()
+                if count:
+                    self.set_status(f"Added {count} game{'s' if count != 1 else ''} to Steam")
+                    self._send_notification(
+                        "Steam Sync Complete",
+                        f"Added {count} game{'s' if count != 1 else ''} to Steam.",
+                        "steam-sync",
+                    )
+                else:
+                    self.set_status("All games already in Steam")
+            GLib.idle_add(finish)
+
+        threading.Thread(
+            target=self._download_manager.add_all_to_steam,
+            kwargs={"on_progress": on_progress, "on_done": on_done},
+            daemon=True,
+        ).start()

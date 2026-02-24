@@ -79,8 +79,10 @@ class SteamShortcuts:
         start_dir: str,
         shortcut_id: int,
         launch_options: str = "",
+        tags: list[str] | None = None,
     ) -> dict:
         """Build a shortcut entry dict for vdf serialization."""
+        tag_dict = {str(i): t for i, t in enumerate(tags)} if tags else {}
         return {
             "appid": shortcut_id,
             "AppName": app_name,
@@ -97,7 +99,7 @@ class SteamShortcuts:
             "DevkitGameID": "",
             "DevkitOverrideAppID": 0,
             "LastPlayTime": 0,
-            "tags": {},
+            "tags": tag_dict,
         }
 
     def add_shortcut(
@@ -106,6 +108,7 @@ class SteamShortcuts:
         exe_path: str,
         start_dir: str,
         launch_options: str = "",
+        tags: list[str] | None = None,
     ) -> int | None:
         """Add a non-Steam shortcut. Returns shortcut ID or None if Steam not found."""
         dirs = self._find_userdata_dirs()
@@ -114,6 +117,7 @@ class SteamShortcuts:
         shortcut_id = self.generate_shortcut_id(app_name, exe_path)
         entry = self.build_shortcut_entry(
             app_name, exe_path, start_dir, shortcut_id, launch_options,
+            tags=tags,
         )
         for config_dir in dirs:
             shortcuts_path = config_dir / "shortcuts.vdf"
@@ -125,8 +129,12 @@ class SteamShortcuts:
                     except Exception:
                         shortcuts = {"shortcuts": {}}
             existing = shortcuts.get("shortcuts", {})
-            # Skip if shortcut with same appid already exists
-            if any(v.get("appid") == shortcut_id for v in existing.values()):
+            # Skip if shortcut with same appid or exe path already exists
+            quoted_exe = f'"{exe_path}"'
+            if any(
+                v.get("appid") == shortcut_id or v.get("Exe") == quoted_exe
+                for v in existing.values()
+            ):
                 continue
             next_idx = str(max((int(k) for k in existing), default=-1) + 1)
             existing[next_idx] = entry
@@ -134,6 +142,23 @@ class SteamShortcuts:
             with open(shortcuts_path, "wb") as f:
                 vdf.binary_dump(shortcuts, f)
         return shortcut_id
+
+    def find_shortcut_id_by_exe(self, exe_path: str) -> int | None:
+        """Look up the appid of an existing shortcut by exe path."""
+        quoted_exe = f'"{exe_path}"'
+        for config_dir in self._find_userdata_dirs():
+            shortcuts_path = config_dir / "shortcuts.vdf"
+            if not shortcuts_path.exists():
+                continue
+            with open(shortcuts_path, "rb") as f:
+                try:
+                    shortcuts = vdf.binary_load(f)
+                except Exception:
+                    continue
+            for v in shortcuts.get("shortcuts", {}).values():
+                if v.get("Exe") == quoted_exe:
+                    return v.get("appid")
+        return None
 
     def remove_shortcut(self, shortcut_id: int) -> None:
         """Remove a non-Steam shortcut by its ID."""
