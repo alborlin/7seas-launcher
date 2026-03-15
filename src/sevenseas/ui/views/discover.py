@@ -304,15 +304,14 @@ class DiscoverView(Gtk.ScrolledWindow):
         picture.set_vexpand(True)
         overlay.set_child(picture)
 
-        # Load thumbnail immediately, then try SteamGridDB hero
+        # Load thumbnail immediately, then try to replace with a proper hero image
         if game_result.thumbnail:
             self._load_image_async(game_result.thumbnail, picture)
-        if self._sgdb_api_key:
-            threading.Thread(
-                target=self._fetch_hero_image,
-                args=(game_result.title, picture),
-                daemon=True,
-            ).start()
+        threading.Thread(
+            target=self._fetch_hero_image,
+            args=(game_result.title, picture),
+            daemon=True,
+        ).start()
 
         # Title overlay at bottom
         title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -371,20 +370,19 @@ class DiscoverView(Gtk.ScrolledWindow):
         return variations
 
     def _fetch_hero_image(self, title, picture):
-        """Search SteamGridDB for a hero image with fallback chain.
+        """Fetch a hero image for the carousel slide.
 
-        Priority: Steam CDN hero → SGDB hero → SGDB grid → give up.
+        Priority: Steam CDN hero (no API key needed) → SGDB community hero → give up.
         """
         try:
             from sevenseas.core.steamgriddb import SteamGridDBClient
             import httpx as _httpx
-            sgdb = SteamGridDBClient(api_key=self._sgdb_api_key)
 
             clean = self._clean_title(title)
             image_url = None
 
-            # 1. Try official Steam CDN hero first
-            steam_appid = sgdb.get_steam_appid(clean)
+            # 1. Try official Steam CDN hero (uses Steam Store search, no API key needed)
+            steam_appid = SteamGridDBClient.get_steam_appid(clean)
             if steam_appid:
                 cdn_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_appid}/library_hero.jpg"
                 try:
@@ -394,8 +392,9 @@ class DiscoverView(Gtk.ScrolledWindow):
                 except Exception:
                     pass
 
-            # 2. Fall back to SteamGridDB community heroes
-            if not image_url:
+            # 2. Fall back to SteamGridDB community heroes (requires API key)
+            if not image_url and self._sgdb_api_key:
+                sgdb = SteamGridDBClient(api_key=self._sgdb_api_key)
                 search_terms = self._search_variations(clean)
                 game_id = None
                 for term in search_terms:
@@ -403,28 +402,26 @@ class DiscoverView(Gtk.ScrolledWindow):
                     if results:
                         game_id = results[0]["id"]
                         break
-                if game_id is None:
-                    return
-
-                try:
-                    resp = sgdb._http.get(
-                        f"/heroes/game/{game_id}",
-                        params={"types": "static", "dimensions": "1920x620,3840x1240"},
-                    )
-                    resp.raise_for_status()
-                    data = resp.json().get("data", [])
-                    if not data:
+                if game_id is not None:
+                    try:
                         resp = sgdb._http.get(
                             f"/heroes/game/{game_id}",
-                            params={"types": "static"},
+                            params={"types": "static", "dimensions": "1920x620,3840x1240"},
                         )
                         resp.raise_for_status()
                         data = resp.json().get("data", [])
-                    if data:
-                        best = max(data, key=lambda x: x.get("score", 0))
-                        image_url = best["url"]
-                except Exception:
-                    pass
+                        if not data:
+                            resp = sgdb._http.get(
+                                f"/heroes/game/{game_id}",
+                                params={"types": "static"},
+                            )
+                            resp.raise_for_status()
+                            data = resp.json().get("data", [])
+                        if data:
+                            best = max(data, key=lambda x: x.get("score", 0))
+                            image_url = best["url"]
+                    except Exception:
+                        pass
 
             if not image_url:
                 return
